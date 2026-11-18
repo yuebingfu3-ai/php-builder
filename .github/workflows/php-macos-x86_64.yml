@@ -1,0 +1,72 @@
+name: Build Static PHP CLI macOS x86_64
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    # GitHub-hosted Intel runner.
+    runs-on: macos-15-intel
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Verify Build Architecture
+        run: |
+          echo "Runner architecture: $(uname -m)"
+          test "$(uname -m)" = "x86_64"
+
+      - name: Setup Homebrew Packages
+        run: |
+          brew install wget pkg-config gnu-tar
+
+      - name: Clone static-php-cli
+        run: |
+          git clone --depth 1 https://github.com/crazywhalecc/static-php-cli.git ../spc-build
+
+      - name: Setup PHP 8.4 Environment
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+
+      - name: Install SPC Dependencies
+        run: |
+          cd ../spc-build
+          composer install --no-dev --optimize-autoloader
+          chmod +x bin/setup-runtime
+          ./bin/setup-runtime
+
+      - name: Download PHP Source & Extensions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          cd ../spc-build
+          ./bin/spc download --with-php=8.4 \
+            -e "swoole,pdo_sqlite,sqlite3,mbstring,curl,openssl,tokenizer,xml,ctype,pcntl,posix,iconv,filter,session,gd,simplexml,zip,fileinfo,zlib,phar,dom,xmlreader,xmlwriter"
+            --with-libs="libjpeg,freetype,libwebp" \
+            -R 5 -P 1 --prefer-pre-built -v
+      - name: Build Static PHP Binary (x86_64)
+        run: |
+          cd ../spc-build
+          ./bin/spc build --build-cli -v \
+            --with-libs="libjpeg,freetype,libwebp" \
+            "swoole,pdo_sqlite,sqlite3,mbstring,curl,openssl,tokenizer,xml,ctype,pcntl,posix,iconv,filter,session,gd,simplexml,zip,fileinfo,zlib,phar,dom,xmlreader,xmlwriter"
+
+      - name: Verify PHP Binary Architecture
+        run: |
+          file ../spc-build/buildroot/bin/php
+          lipo -archs ../spc-build/buildroot/bin/php
+          test "$(lipo -archs ../spc-build/buildroot/bin/php)" = "x86_64"
+
+      - name: Prepare PHP Binary
+        run: |
+          mkdir -p artifacts
+          cp ../spc-build/buildroot/bin/php artifacts/php
+          chmod +x artifacts/php
+
+      - name: Upload macOS x86_64 Executable
+        uses: actions/upload-artifact@v6
+        with:
+          name: php-macos-x86_64
+          path: artifacts/php
