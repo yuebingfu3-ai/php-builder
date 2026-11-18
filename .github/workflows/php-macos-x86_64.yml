@@ -43,7 +43,7 @@ jobs:
         run: |
           cd ../spc-build
           ./bin/spc download --with-php=8.4 \
-            -e "swoole,pdo_sqlite,sqlite3,mbstring,curl,openssl,tokenizer,xml,ctype,pcntl,posix,iconv,filter,session,gd,simplexml,zip,fileinfo,zlib,phar,dom,xmlreader,xmlwriter"
+            -e "swoole,pdo_sqlite,sqlite3,mbstring,curl,openssl,tokenizer,xml,ctype,pcntl,posix,iconv,filter,session,gd,simplexml,zip,fileinfo,zlib,phar,dom,xmlreader,xmlwriter" \
             --with-libs="libjpeg,freetype,libwebp" \
             -R 5 -P 1 --prefer-pre-built -v
       - name: Build Static PHP Binary (x86_64)
