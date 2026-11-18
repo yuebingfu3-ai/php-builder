@@ -1,0 +1,80 @@
+name: Build Static PHP CLI macOS ARM64
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-15
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Setup Homebrew Packages
+        run: |
+          brew install wget pkg-config gnu-tar
+
+      - name: Clone static-php-cli
+        run: |
+          git clone --depth 1 https://github.com/crazywhalecc/static-php-cli.git ../spc-build
+
+      - name: Setup PHP 8.4 Environment
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+
+      - name: Install SPC Dependencies
+        run: |
+          cd ../spc-build
+          composer install --no-dev --optimize-autoloader
+          chmod +x bin/setup-runtime
+          ./bin/setup-runtime
+      - name: Patch Custom Download URLs
+        run: |
+          cd ../spc-build
+          php -r '
+            $files = ["config/source.json", "src/globals/source.json"];
+            foreach ($files as $file) {
+                if (file_exists($file)) {
+                    $json = json_decode(file_get_contents($file), true);
+                    $json["libcares"] = [
+                        "type" => "url",
+                        "url" => "https://github.com/c-ares/c-ares/releases/download/v1.34.9/c-ares-1.34.9.tar.gz"
+                    ];
+                    $json["zstd"] = [
+                        "type" => "url",
+                        "url" => "https://github.com/meta/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz"
+                    ];
+                    file_put_contents($file, json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+                    echo "Patched $file successfully.\n";
+                }
+            }
+          '
+      - name: Download PHP Source & Extensions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          cd ../spc-build
+          ./bin/spc download --with-php=8.4 \
+            -e "swoole,pdo_sqlite,sqlite3,mbstring,curl,openssl,tokenizer,xml,ctype,pcntl,posix,iconv,filter,session,gd,simplexml,zip,fileinfo,zlib,phar,dom,xmlreader,xmlwriter" \
+            --for-libs="libjpeg,freetype,libwebp" \
+            -R 5 -P 1 --prefer-pre-built -v
+
+      - name: Build Static PHP Binary (x86_64)
+        run: |
+          cd ../spc-build
+          ./bin/spc build --build-cli -v \
+            --with-packages="libjpeg,freetype,libwebp" \
+            "swoole,pdo_sqlite,sqlite3,mbstring,curl,openssl,tokenizer,xml,ctype,pcntl,posix,iconv,filter,session,gd,simplexml,zip,fileinfo,zlib,phar,dom,xmlreader,xmlwriter"
+      
+      - name: Prepare PHP Binary
+        run: |
+          mkdir -p artifacts
+          cp ../spc-build/buildroot/bin/php artifacts/php
+
+      - name: Upload macOS ARM64 Executable
+        uses: actions/upload-artifact@v6
+        with:
+          name: php-macos-arm64
+          path: artifacts/php
