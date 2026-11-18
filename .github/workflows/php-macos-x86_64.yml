@@ -44,13 +44,14 @@ jobs:
           cd ../spc-build
           ./bin/spc download --with-php=8.4 \
             -e "swoole,pdo_sqlite,sqlite3,mbstring,curl,openssl,tokenizer,xml,ctype,pcntl,posix,iconv,filter,session,gd,simplexml,zip,fileinfo,zlib,phar,dom,xmlreader,xmlwriter" \
-            --with-libs="libjpeg,freetype,libwebp" \
+            --for-libs="libjpeg,freetype,libwebp" \
             -R 5 -P 1 --prefer-pre-built -v
+
       - name: Build Static PHP Binary (x86_64)
         run: |
           cd ../spc-build
           ./bin/spc build --build-cli -v \
-            --with-libs="libjpeg,freetype,libwebp" \
+            --with-packages="libjpeg,freetype,libwebp" \
             "swoole,pdo_sqlite,sqlite3,mbstring,curl,openssl,tokenizer,xml,ctype,pcntl,posix,iconv,filter,session,gd,simplexml,zip,fileinfo,zlib,phar,dom,xmlreader,xmlwriter"
 
       - name: Verify PHP Binary Architecture
